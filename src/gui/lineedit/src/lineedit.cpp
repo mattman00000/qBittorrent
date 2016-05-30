@@ -8,48 +8,63 @@
 ****************************************************************************/
 
 #include "lineedit.h"
-#include <QToolButton>
+#include <algorithm>
 #include <QStyle>
-#include <QtDebug>
+#include <QToolButton>
+#include <QResizeEvent>
 
 LineEdit::LineEdit(QWidget *parent)
-  : QLineEdit(parent)
+    : QLineEdit(parent)
 {
-  searchButton = new QToolButton(this);
-  QPixmap pixmap1(":/lineeditimages/search.png");
-  searchButton->setIcon(QIcon(pixmap1));
-  searchButton->setIconSize(pixmap1.size());
-  searchButton->setCursor(Qt::ArrowCursor);
-  searchButton->setStyleSheet("QToolButton { border: none; padding: 2px; }");
-  clearButton = new QToolButton(this);
-  QPixmap pixmap2(":/lineeditimages/clear_left.png");
-  clearButton->setIcon(QIcon(pixmap2));
-  clearButton->setIconSize(pixmap2.size());
-  clearButton->setCursor(Qt::ArrowCursor);
-  clearButton->setStyleSheet("QToolButton { border: none; padding: 2px; }");
-  clearButton->setToolTip(tr("Clear the text"));
-  clearButton->hide();
-  connect(clearButton, SIGNAL(clicked()), this, SLOT(clear()));
-  connect(this, SIGNAL(textChanged(const QString&)), this, SLOT(updateCloseButton(const QString&)));
-  int frameWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth);
-  setStyleSheet(QString("QLineEdit { padding-right: %1px; padding-left: %2px; }").arg(clearButton->sizeHint().width() + frameWidth + 1).arg(clearButton->sizeHint().width() + frameWidth + 1));
-  QSize msz = minimumSizeHint();
-  setMinimumSize(qMax(msz.width(), clearButton->sizeHint().width() + searchButton->sizeHint().width() + frameWidth * 2 + 2),
-                 qMax(msz.height(), clearButton->sizeHint().height() + frameWidth * 2 + 2));
+    QPixmap pixmap1(":/lineeditimages/search.png");
+    searchButton = new QToolButton(this);
+    searchButton->setIcon(QIcon(pixmap1));
+    searchButton->setIconSize(pixmap1.size());
+    searchButton->setCursor(Qt::ArrowCursor);
+    searchButton->setStyleSheet("QToolButton { border: none; padding: 2px; }");
+    QSize searchButtonHint = searchButton->sizeHint();
+
+    QSize clearButtonHint(0, 0);
+#ifndef QBT_USES_QT5
+    QPixmap pixmap2(":/lineeditimages/clear_left.png");
+    clearButton = new QToolButton(this);
+    clearButton->setIcon(QIcon(pixmap2));
+    clearButton->setIconSize(pixmap2.size());
+    clearButton->setCursor(Qt::ArrowCursor);
+    clearButton->setStyleSheet("QToolButton { border: none; padding: 2px; }");
+    clearButton->setToolTip(tr("Clear the text"));
+    clearButton->hide();
+    connect(clearButton, SIGNAL(clicked()), this, SLOT(clear()));
+    connect(this, SIGNAL(textChanged(const QString &)), this, SLOT(updateCloseButton(const QString &)));
+
+    clearButtonHint = clearButton->sizeHint();
+    setStyleSheet(QString("QLineEdit { padding-left: %1px; padding-right: %2px; }").arg(searchButtonHint.width()).arg(clearButtonHint.width()));
+#else
+    setClearButtonEnabled(true);
+    setStyleSheet(QString("QLineEdit { padding-left: %1px; }").arg(searchButtonHint.width()));  // padding between text and widget borders
+#endif
+
+    QSize widgetHint = sizeHint();
+    int frameWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth);
+    setMaximumHeight(std::max({ widgetHint.height(), searchButtonHint.height(), clearButtonHint.height() }) + frameWidth * 2);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 }
 
-void LineEdit::resizeEvent(QResizeEvent *)
+void LineEdit::resizeEvent(QResizeEvent *e)
 {
-  QSize sz = searchButton->sizeHint();
-  int frameWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth);
-  searchButton->move(rect().left() + frameWidth, (rect().bottom() + 2 - sz.height())/2);
-  sz = clearButton->sizeHint();
-  clearButton->move(rect().right() - frameWidth - sz.width(),
-                    (rect().bottom() + 2 - sz.height())/2);
+    int frameWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth);
+
+    QSize sz = searchButton->sizeHint();
+    searchButton->move(frameWidth, (e->size().height() - sz.height()) / 2);
+#ifndef QBT_USES_QT5
+    QSize cz = clearButton->sizeHint();
+    clearButton->move((e->size().width() - frameWidth - cz.width()), (e->size().height() - sz.height()) / 2);
+#endif
 }
 
-void LineEdit::updateCloseButton(const QString& text)
+#ifndef QBT_USES_QT5
+void LineEdit::updateCloseButton(const QString &text)
 {
-  clearButton->setVisible(!text.isEmpty());
+    clearButton->setVisible(!text.isEmpty());
 }
-
+#endif

@@ -1,5 +1,5 @@
-#VERSION: 2.15
-#AUTHORS: Diego de las Heras (diegodelasheras@gmail.com)
+#VERSION: 2.19
+#AUTHORS: Diego de las Heras (ngosang@hotmail.es)
 
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -36,11 +36,11 @@ class torrentz(object):
     name = 'Torrentz'
     supported_categories = {'all': ''}
 
-    trackers_list = ['udp://open.demonii.com:1337/announce',
-                    'udp://tracker.openbittorrent.com:80/announce',
+    trackers_list = ['udp://tracker.openbittorrent.com:80/announce',
+                    'udp://glotorrents.pw:6969/announce',
                     'udp://tracker.leechers-paradise.org:6969',
-                    'udp://tracker.coppersurfer.tk:6969',
-                    'udp://9.rarbg.com:2710/announce']
+                    'udp://9.rarbg.com:2710/announce',
+                    'udp://tracker.coppersurfer.tk:6969']
 
     class MyHtmlParser(HTMLParser):
         def __init__(self, results, url, trackers):
@@ -92,9 +92,9 @@ class torrentz(object):
                 # display item
                 self.td_counter = None
                 self.current_item['engine_url'] = self.url
-                if self.current_item['name'].find(' \xc2'):
-                    self.current_item['name'] = self.current_item['name'].split(' \xc2')[0]
-                self.current_item['link'] += '&' + urlencode({'dn' : self.current_item['name']})
+                if self.current_item['name'].find(u' \xbb'):
+                    self.current_item['name'] = self.current_item['name'].split(u' \xbb')[0]
+                self.current_item['link'] += '&' + urlencode({'dn' : self.current_item['name'].encode('utf-8')})
 
                 prettyPrinter(self.current_item)
                 self.results.append('a')
@@ -106,14 +106,15 @@ class torrentz(object):
         # initialize trackers for magnet links
         trackers = '&' + '&'.join(urlencode({'tr' : tracker}) for tracker in self.trackers_list)
 
+        results_list = []
+        parser = self.MyHtmlParser(results_list, self.url, trackers)
         i = 0
         while i < 6:
-            results_list = []
             # "what" is already urlencoded
-            html = retrieve_url('%s/any?f=%s&p=%d' % (self.url, what, i))
-            parser = self.MyHtmlParser(results_list, self.url, trackers)
+            html = retrieve_url(self.url + '/any?f=%s&p=%d' % (what, i))
             parser.feed(html)
-            parser.close()
             if len(results_list) < 1:
                 break
+            del results_list[:]
             i += 1
+        parser.close()

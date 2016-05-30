@@ -1,29 +1,29 @@
-<table class="torrentTable" cellpadding="0" cellspacing="0" style="-webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;">
+<table class="torrentTable" cellpadding="0" cellspacing="0">
     <thead>
-        <tr id="torrentTableHeader">
+        <tr id="torrentsTableHeader" class="dynamicTableHeader">
         </tr>
     </thead>
-    <tbody id="myTable"></tbody>
+    <tbody id="torrentsTable"></tbody>
 </table>
 
 <script type="text/javascript">
 
     //create a context menu
-    var context_menu = new ContextMenu({
-        targets : '.menu-target',
-        menu : 'contextmenu',
+    var torrentsTableContextMenu = new TorrentsTableContextMenu({
+        targets : '.torrentsTableContextMenuTarget',
+        menu : 'torrentsTableMenu',
         actions : {
             Delete : function (element, ref) {
                 deleteFN();
-            },
-            DeleteHD : function (element, ref) {
-                deleteHDFN();
             },
             Start : function (element, ref) {
                 startFN();
             },
             Pause : function (element, ref) {
                 pauseFN();
+            },
+            ForceStart : function (element, ref) {
+                setForceStartFN();
             },
             prioTop : function (element, ref) {
                 setPriorityFN('topPrio');
@@ -54,9 +54,6 @@
             },
             SuperSeeding : function (element, ref) {
                 setSuperSeedingFN(!ref.getItemChecked('SuperSeeding'));
-            },
-            ForceStart : function (element, ref) {
-                setForceStartFN(!ref.getItemChecked('ForceStart'));
             }
         },
         offsets : {
@@ -65,5 +62,5 @@
         }
     });
 
-    myTable.setup('myTable', context_menu);
+    torrentsTable.setup('torrentsTable', 'torrentsTableHeader', torrentsTableContextMenu);
 </script>

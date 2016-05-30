@@ -30,7 +30,7 @@
 #ifndef GUIICONPROVIDER_H
 #define GUIICONPROVIDER_H
 
-#include "core/iconprovider.h"
+#include "base/iconprovider.h"
 
 class QIcon;
 
@@ -44,6 +44,7 @@ public:
     static GuiIconProvider *instance();
 
     QIcon getIcon(const QString &iconId);
+    QIcon getFlagIcon(const QString &countryIsoCode);
     QString getIconPath(const QString &iconId);
 
 private slots:

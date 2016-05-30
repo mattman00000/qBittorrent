@@ -33,13 +33,13 @@
 #include <QMessageBox>
 
 #include "torrentcreatordlg.h"
-#include "core/utils/fs.h"
-#include "core/utils/misc.h"
-#include "core/preferences.h"
+#include "base/utils/fs.h"
+#include "base/utils/misc.h"
+#include "base/preferences.h"
 #include "guiiconprovider.h"
-#include "core/bittorrent/session.h"
-#include "core/bittorrent/torrentinfo.h"
-#include "core/bittorrent/torrentcreatorthread.h"
+#include "base/bittorrent/session.h"
+#include "base/bittorrent/torrentinfo.h"
+#include "base/bittorrent/torrentcreatorthread.h"
 
 const uint NB_PIECES_MIN = 1200;
 const uint NB_PIECES_MAX = 2200;
@@ -121,7 +121,7 @@ void TorrentCreatorDlg::on_createButton_clicked()
     Preferences* const pref = Preferences::instance();
     QString lastPath = pref->getCreateTorLastSavePath();
 
-    QString destination = QFileDialog::getSaveFileName(this, tr("Select destination torrent file"), lastPath, tr("Torrent Files")+QString::fromUtf8(" (*.torrent)"));
+    QString destination = QFileDialog::getSaveFileName(this, tr("Select destination torrent file"), lastPath, tr("Torrent Files (*.torrent)"));
     if (destination.isEmpty())
         return;
 
@@ -173,7 +173,7 @@ void TorrentCreatorDlg::handleCreationSuccess(QString path, QString branch_path)
 
         BitTorrent::Session::instance()->addTorrent(t, params);
     }
-    QMessageBox::information(0, tr("Torrent creation"), tr("Torrent was created successfully:")+" "+Utils::Fs::toNativePath(path));
+    QMessageBox::information(0, tr("Torrent creation"), tr("Torrent was created successfully: %1", "%1 is the path of the torrent").arg(Utils::Fs::toNativePath(path)));
     close();
 }
 

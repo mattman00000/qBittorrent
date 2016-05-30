@@ -4,13 +4,12 @@
     FindFirst $0 $1 "$INSTDIR\uninst.exe"
     FindClose $0
     StrCmp $1 "" done
-        
+
     ;Run the uninstaller of the previous install.
-    DetailPrint $(inst_unist)    
+    DetailPrint $(inst_unist)
     ExecWait '"$INSTDIR\uninst.exe" /S _?=$INSTDIR'
     Delete "$INSTDIR\uninst.exe"
-    
-  
+
     done:
 
 SectionEnd
@@ -31,13 +30,13 @@ Section $(inst_qbt_req) ;"qBittorrent (required)"
   File "qbittorrent.pdb"
   File "qt.conf"
   File /oname=translations\qt_ar.qm "translations\qt_ar.qm"
-  File /oname=translations\qt_bg.qm "translations\qt_bg.qm"
   File /oname=translations\qt_ca.qm "translations\qt_ca.qm"
   File /oname=translations\qt_cs.qm "translations\qt_cs.qm"
   File /oname=translations\qt_da.qm "translations\qt_da.qm"
   File /oname=translations\qt_de.qm "translations\qt_de.qm"
+  File /oname=translations\qt_en.qm "translations\qt_en.qm"
   File /oname=translations\qt_es.qm "translations\qt_es.qm"
-  File /oname=translations\qt_eu.qm "translations\qt_eu.qm"  
+  File /oname=translations\qt_fa.qm "translations\qt_fa.qm"
   File /oname=translations\qt_fi.qm "translations\qt_fi.qm"
   File /oname=translations\qt_fr.qm "translations\qt_fr.qm"
   File /oname=translations\qt_gl.qm "translations\qt_gl.qm"
@@ -47,17 +46,15 @@ Section $(inst_qbt_req) ;"qBittorrent (required)"
   File /oname=translations\qt_ja.qm "translations\qt_ja.qm"
   File /oname=translations\qt_ko.qm "translations\qt_ko.qm"
   File /oname=translations\qt_lt.qm "translations\qt_lt.qm"
-  File /oname=translations\qt_nl.qm "translations\qt_nl.qm"
   File /oname=translations\qt_pl.qm "translations\qt_pl.qm"
   File /oname=translations\qt_pt.qm "translations\qt_pt.qm"
-  File /oname=translations\qt_pt_BR.qm "translations\qt_pt_BR.qm"
   File /oname=translations\qt_ru.qm "translations\qt_ru.qm"
-  File /oname=translations\qt_sk.qm "translations\qt_sk.qm"  
+  File /oname=translations\qt_sk.qm "translations\qt_sk.qm"
+  File /oname=translations\qt_sl.qm "translations\qt_sl.qm"
   File /oname=translations\qt_sv.qm "translations\qt_sv.qm"
-  File /oname=translations\qt_tr.qm "translations\qt_tr.qm"
   File /oname=translations\qt_uk.qm "translations\qt_uk.qm"
   File /oname=translations\qt_zh_CN.qm "translations\qt_zh_CN.qm"
-  File /oname=translations\qt_zh_TW.qm "translations\qt_zh_TW.qm" 
+  File /oname=translations\qt_zh_TW.qm "translations\qt_zh_TW.qm"
   
   ; Write the installation path into the registry  
   WriteRegStr HKLM "Software\qBittorrent" "InstallLocation" "$INSTDIR"
@@ -179,7 +176,18 @@ Function .onInit
 
   !insertmacro Init "installer"
   !insertmacro MUI_LANGDLL_DISPLAY
-	
+
+  ;Search if qBittorrent is already installed.
+  FindFirst $0 $1 "$INSTDIR\uninst.exe"
+  FindClose $0
+  StrCmp $1 "" done
+
+  ;Inform the user
+  MessageBox MB_OKCANCEL|MB_ICONINFORMATION $(inst_uninstall_question) /SD IDOK IDOK done
+  Quit
+
+  done:
+
 FunctionEnd
 
 Function check_instance

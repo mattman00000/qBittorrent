@@ -61,7 +61,7 @@ public:
         TR_UPSPEED,
         TR_ETA,
         TR_RATIO,
-        TR_LABEL,
+        TR_CATEGORY,
         TR_ADD_DATE,
         TR_SEED_DATE,
         TR_TRACKER,
@@ -97,6 +97,7 @@ private slots:
     void addTorrent(BitTorrent::TorrentHandle *const torrent);
     void handleTorrentAboutToBeRemoved(BitTorrent::TorrentHandle *const torrent);
     void handleTorrentStatusUpdated(BitTorrent::TorrentHandle *const torrent);
+    void handleTorrentsUpdated();
 
 private:
     QList<BitTorrent::TorrentHandle *> m_torrents;

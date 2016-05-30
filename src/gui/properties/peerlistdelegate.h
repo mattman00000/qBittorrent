@@ -33,15 +33,15 @@
 
 #include <QItemDelegate>
 #include <QPainter>
-#include "core/utils/misc.h"
-#include "core/utils/string.h"
+#include "base/utils/misc.h"
+#include "base/utils/string.h"
 
 class PeerListDelegate: public QItemDelegate {
   Q_OBJECT
 
 public:
   enum PeerListColumns {COUNTRY, IP, PORT, CONNECTION, FLAGS, CLIENT, PROGRESS, DOWN_SPEED, UP_SPEED,
-                        TOT_DOWN, TOT_UP, RELEVANCE, IP_HIDDEN, COL_COUNT};
+                        TOT_DOWN, TOT_UP, RELEVANCE, DOWNLOADING_PIECE, IP_HIDDEN, COL_COUNT};
 
 public:
   PeerListDelegate(QObject *parent) : QItemDelegate(parent) {}
@@ -62,7 +62,7 @@ public:
       QItemDelegate::drawBackground(painter, opt, index);
       qreal speed = index.data().toDouble();
       if (speed > 0.0)
-        QItemDelegate::drawDisplay(painter, opt, opt.rect, Utils::Misc::friendlyUnit(speed)+tr("/s", "/second (i.e. per second)"));
+        QItemDelegate::drawDisplay(painter, opt, opt.rect, Utils::Misc::friendlyUnit(speed, true));
       break;
     }
     case PROGRESS:

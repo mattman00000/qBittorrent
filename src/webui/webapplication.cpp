@@ -32,22 +32,25 @@
 #include <QCryptographicHash>
 #include <queue>
 #include <vector>
-#include "core/iconprovider.h"
-#include "core/utils/misc.h"
-#include "core/utils/fs.h"
-#include "core/utils/string.h"
-#include "core/preferences.h"
+
+#include "base/iconprovider.h"
+#include "base/utils/misc.h"
+#include "base/utils/fs.h"
+#include "base/utils/string.h"
+#include "base/preferences.h"
+#include "base/bittorrent/session.h"
+#include "base/bittorrent/trackerentry.h"
+#include "base/bittorrent/torrentinfo.h"
+#include "base/bittorrent/torrenthandle.h"
+#include "base/net/downloadmanager.h"
 #include "btjson.h"
 #include "prefjson.h"
-#include "core/bittorrent/session.h"
-#include "core/bittorrent/trackerentry.h"
-#include "core/bittorrent/torrentinfo.h"
-#include "core/bittorrent/torrenthandle.h"
+#include "jsonutils.h"
 #include "websessiondata.h"
 #include "webapplication.h"
 
-static const int API_VERSION = 3;
-static const int API_VERSION_MIN = 2;
+static const int API_VERSION = 11;
+static const int API_VERSION_MIN = 10;
 
 const QString WWW_FOLDER = ":/www/public/";
 const QString PRIVATE_FOLDER = ":/www/private/";
@@ -78,7 +81,10 @@ QMap<QString, QMap<QString, WebApplication::Action> > WebApplication::initialize
     ADD_ACTION(query, propertiesTrackers);
     ADD_ACTION(query, propertiesWebSeeds);
     ADD_ACTION(query, propertiesFiles);
+    ADD_ACTION(query, getLog);
+    ADD_ACTION(query, getPeerLog);
     ADD_ACTION(sync, maindata);
+    ADD_ACTION(sync, torrent_peers);
     ADD_ACTION(command, shutdown);
     ADD_ACTION(command, download);
     ADD_ACTION(command, upload);
@@ -110,6 +116,10 @@ QMap<QString, QMap<QString, WebApplication::Action> > WebApplication::initialize
     ADD_ACTION(command, topPrio);
     ADD_ACTION(command, bottomPrio);
     ADD_ACTION(command, recheck);
+    ADD_ACTION(command, setCategory);
+    ADD_ACTION(command, addCategory);
+    ADD_ACTION(command, removeCategories);
+    ADD_ACTION(command, getSavePath);
     ADD_ACTION(version, api);
     ADD_ACTION(version, api_min);
     ADD_ACTION(version, qbittorrent);
@@ -210,7 +220,7 @@ void WebApplication::action_public_images()
 
 // GET params:
 //   - filter (string): all, downloading, seeding, completed, paused, resumed, active, inactive
-//   - label (string): torrent label for filtering by it (empty string means "unlabeled"; no "label" param presented means "any label")
+//   - category (string): torrent category for filtering by it (empty string means "uncategorized"; no "category" param presented means "any category")
 //   - sort (string): name of column for sorting by its value
 //   - reverse (bool): enable reverse sorting
 //   - limit (int): set limit number of torrents returned (if greater than 0, otherwise - unlimited)
@@ -221,45 +231,83 @@ void WebApplication::action_query_torrents()
     const QStringMap& gets = request().gets;
 
     print(btjson::getTorrents(
-        gets["filter"], gets["label"], gets["sort"], gets["reverse"] == "true",
+        gets["filter"], gets["category"], gets["sort"], gets["reverse"] == "true",
         gets["limit"].toInt(), gets["offset"].toInt()
-        ), Http::CONTENT_TYPE_JS);
+        ), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_query_preferences()
 {
     CHECK_URI(0);
-    print(prefjson::getPreferences(), Http::CONTENT_TYPE_JS);
+    print(prefjson::getPreferences(), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_query_transferInfo()
 {
     CHECK_URI(0);
-    print(btjson::getTransferInfo(), Http::CONTENT_TYPE_JS);
+    print(btjson::getTransferInfo(), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_query_propertiesGeneral()
 {
     CHECK_URI(1);
-    print(btjson::getPropertiesForTorrent(args_.front()), Http::CONTENT_TYPE_JS);
+    print(btjson::getPropertiesForTorrent(args_.front()), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_query_propertiesTrackers()
 {
     CHECK_URI(1);
-    print(btjson::getTrackersForTorrent(args_.front()), Http::CONTENT_TYPE_JS);
+    print(btjson::getTrackersForTorrent(args_.front()), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_query_propertiesWebSeeds()
 {
     CHECK_URI(1);
-    print(btjson::getWebSeedsForTorrent(args_.front()), Http::CONTENT_TYPE_JS);
+    print(btjson::getWebSeedsForTorrent(args_.front()), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_query_propertiesFiles()
 {
     CHECK_URI(1);
-    print(btjson::getFilesForTorrent(args_.front()), Http::CONTENT_TYPE_JS);
+    print(btjson::getFilesForTorrent(args_.front()), Http::CONTENT_TYPE_JSON);
+}
+
+// GET params:
+//   - normal (bool): include normal messages (default true)
+//   - info (bool): include info messages (default true)
+//   - warning (bool): include warning messages (default true)
+//   - critical (bool): include critical messages (default true)
+//   - last_known_id (int): exclude messages with id <= 'last_known_id' (default -1)
+void WebApplication::action_query_getLog()
+{
+    CHECK_URI(0);
+    bool normal = request().gets["normal"] != "false";
+    bool info = request().gets["info"] != "false";
+    bool warning = request().gets["warning"] != "false";
+    bool critical = request().gets["critical"] != "false";
+    int lastKnownId;
+    bool ok;
+
+    lastKnownId = request().gets["last_known_id"].toInt(&ok);
+    if (!ok)
+        lastKnownId = -1;
+
+    print(btjson::getLog(normal, info, warning, critical, lastKnownId), Http::CONTENT_TYPE_JSON);
+}
+
+// GET params:
+//   - last_known_id (int): exclude messages with id <= 'last_known_id' (default -1)
+void WebApplication::action_query_getPeerLog()
+{
+    CHECK_URI(0);
+    int lastKnownId;
+    bool ok;
+
+    lastKnownId = request().gets["last_known_id"].toInt(&ok);
+    if (!ok)
+        lastKnownId = -1;
+
+    print(btjson::getPeerLog(lastKnownId), Http::CONTENT_TYPE_JSON);
 }
 
 // GET param:
@@ -267,8 +315,23 @@ void WebApplication::action_query_propertiesFiles()
 void WebApplication::action_sync_maindata()
 {
     CHECK_URI(0);
-    print(btjson::getSyncMainData(request().gets["rid"].toInt(), session()->syncMainDataLastResponse, session()->syncMainDataLastAcceptedResponse));
+    print(btjson::getSyncMainData(request().gets["rid"].toInt(),
+        session()->syncMainDataLastResponse,
+        session()->syncMainDataLastAcceptedResponse), Http::CONTENT_TYPE_JSON);
 }
+
+// GET param:
+//   - hash (string): torrent hash
+//   - rid (int): last response id
+void WebApplication::action_sync_torrent_peers()
+{
+    CHECK_URI(0);
+    print(btjson::getSyncTorrentPeersData(request().gets["rid"].toInt(),
+        request().gets["hash"],
+        session()->syncTorrentPeersLastResponse,
+        session()->syncTorrentPeersLastAcceptedResponse), Http::CONTENT_TYPE_JSON);
+}
+
 
 void WebApplication::action_version_api()
 {
@@ -302,19 +365,39 @@ void WebApplication::action_command_shutdown()
 void WebApplication::action_command_download()
 {
     CHECK_URI(0);
-    CHECK_PARAMETERS("urls");
     QString urls = request().posts["urls"];
     QStringList list = urls.split('\n');
+    QString savepath = request().posts["savepath"];
+    QString category = request().posts["category"];
+    QString cookie = request().posts["cookie"];
+    QList<QNetworkCookie> cookies;
+    if (!cookie.isEmpty()) {
+
+        QStringList cookiesStr = cookie.split("; ");
+        foreach (QString cookieStr, cookiesStr) {
+            cookieStr = cookieStr.trimmed();
+            int index = cookieStr.indexOf('=');
+            if (index > 1) {
+                QByteArray name = cookieStr.left(index).toLatin1();
+                QByteArray value = cookieStr.right(cookieStr.length() - index - 1).toLatin1();
+                QNetworkCookie c(name, value);
+                cookies << c;
+            }
+        }
+    }
+
+    savepath = savepath.trimmed();
+    category = category.trimmed();
+
+    BitTorrent::AddTorrentParams params;
+    params.savePath = savepath;
+    params.category = category;
 
     foreach (QString url, list) {
         url = url.trimmed();
         if (!url.isEmpty()) {
-            if (url.startsWith("bc://bt/", Qt::CaseInsensitive)) {
-                qDebug("Converting bc link to magnet link");
-                url = Utils::Misc::bcLinkToMagnet(url);
-            }
-
-            BitTorrent::Session::instance()->addTorrent(url);
+            Net::DownloadManager::instance()->setCookiesFromUrl(cookies, QUrl::fromEncoded(url.toUtf8()));
+            BitTorrent::Session::instance()->addTorrent(url, params);
         }
     }
 }
@@ -323,6 +406,11 @@ void WebApplication::action_command_upload()
 {
     qDebug() << Q_FUNC_INFO;
     CHECK_URI(0);
+    QString savepath = request().posts["savepath"];
+    QString category = request().posts["category"];
+
+    savepath = savepath.trimmed();
+    category = category.trimmed();
 
     foreach(const Http::UploadedFile& torrent, request().files) {
         QString filePath = saveTmpFile(torrent.data);
@@ -334,7 +422,10 @@ void WebApplication::action_command_upload()
                 print(QObject::tr("Error: '%1' is not a valid torrent file.\n").arg(torrent.filename), Http::CONTENT_TYPE_TXT);
             }
             else {
-                if (!BitTorrent::Session::instance()->addTorrent(torrentInfo)) {
+                BitTorrent::AddTorrentParams params;
+                params.savePath = savepath;
+                params.category = category;
+                if (!BitTorrent::Session::instance()->addTorrent(torrentInfo, params)) {
                     status(500, "Internal Server Error");
                     print(QObject::tr("Error: Could not add torrent to session."), Http::CONTENT_TYPE_TXT);
                 }
@@ -359,8 +450,11 @@ void WebApplication::action_command_addTrackers()
     BitTorrent::TorrentHandle *const torrent = BitTorrent::Session::instance()->findTorrent(hash);
     if (torrent) {
         QList<BitTorrent::TrackerEntry> trackers;
-        foreach (const QString &url, request().posts["urls"].split('\n'))
-            trackers << url;
+        foreach (QString url, request().posts["urls"].split('\n')) {
+            url = url.trimmed();
+            if (!url.isEmpty())
+                trackers << url;
+        }
         torrent->addTrackers(trackers);
     }
 }
@@ -424,13 +518,13 @@ void WebApplication::action_command_setFilePrio()
 void WebApplication::action_command_getGlobalUpLimit()
 {
     CHECK_URI(0);
-    print(QByteArray::number(BitTorrent::Session::instance()->uploadRateLimit()));
+    print(QByteArray::number(BitTorrent::Session::instance()->uploadRateLimit()), Http::CONTENT_TYPE_TXT);
 }
 
 void WebApplication::action_command_getGlobalDlLimit()
 {
     CHECK_URI(0);
-    print(QByteArray::number(BitTorrent::Session::instance()->downloadRateLimit()));
+    print(QByteArray::number(BitTorrent::Session::instance()->downloadRateLimit()), Http::CONTENT_TYPE_TXT);
 }
 
 void WebApplication::action_command_setGlobalUpLimit()
@@ -466,7 +560,7 @@ void WebApplication::action_command_getTorrentsUpLimit()
     CHECK_URI(0);
     CHECK_PARAMETERS("hashes");
     QStringList hashes = request().posts["hashes"].split("|");
-    print(btjson::getTorrentsRatesLimits(hashes, false), Http::CONTENT_TYPE_JS);
+    print(btjson::getTorrentsRatesLimits(hashes, false), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_command_getTorrentsDlLimit()
@@ -474,7 +568,7 @@ void WebApplication::action_command_getTorrentsDlLimit()
     CHECK_URI(0);
     CHECK_PARAMETERS("hashes");
     QStringList hashes = request().posts["hashes"].split("|");
-    print(btjson::getTorrentsRatesLimits(hashes, true), Http::CONTENT_TYPE_JS);
+    print(btjson::getTorrentsRatesLimits(hashes, true), Http::CONTENT_TYPE_JSON);
 }
 
 void WebApplication::action_command_setTorrentsUpLimit()
@@ -520,7 +614,7 @@ void WebApplication::action_command_toggleAlternativeSpeedLimits()
 void WebApplication::action_command_alternativeSpeedLimitsEnabled()
 {
     CHECK_URI(0);
-    print(QByteArray::number(Preferences::instance()->isAltBandwidthEnabled()));
+    print(QByteArray::number(Preferences::instance()->isAltBandwidthEnabled()), Http::CONTENT_TYPE_TXT);
 }
 
 void WebApplication::action_command_toggleSequentialDownload()
@@ -655,6 +749,56 @@ void WebApplication::action_command_recheck()
     BitTorrent::TorrentHandle *const torrent = BitTorrent::Session::instance()->findTorrent(request().posts["hash"]);
     if (torrent)
         torrent->forceRecheck();
+}
+
+void WebApplication::action_command_setCategory()
+{
+    CHECK_URI(0);
+    CHECK_PARAMETERS("hashes" << "category");
+
+    QStringList hashes = request().posts["hashes"].split("|");
+    QString category = request().posts["category"].trimmed();
+
+    foreach (const QString &hash, hashes) {
+        BitTorrent::TorrentHandle *const torrent = BitTorrent::Session::instance()->findTorrent(hash);
+        if (torrent) {
+            if (!torrent->setCategory(category)) {
+                status(400, "Incorrect category name");
+                return;
+            }
+        }
+    }
+}
+
+void WebApplication::action_command_addCategory()
+{
+    CHECK_URI(0);
+    CHECK_PARAMETERS("category");
+
+    QString category = request().posts["category"].trimmed();
+
+    if (!BitTorrent::Session::isValidCategoryName(category) && !category.isEmpty()) {
+        status(400, tr("Incorrect category name"));
+        return;
+    }
+
+    BitTorrent::Session::instance()->addCategory(category);
+}
+
+void WebApplication::action_command_removeCategories()
+{
+    CHECK_URI(0);
+    CHECK_PARAMETERS("categories");
+
+    QStringList categories = request().posts["categories"].split('\n');
+    foreach (const QString &category, categories)
+        BitTorrent::Session::instance()->removeCategory(category);
+}
+
+void WebApplication::action_command_getSavePath()
+{
+    CHECK_URI(0);
+    print(BitTorrent::Session::instance()->defaultSavePath());
 }
 
 bool WebApplication::isPublicScope()

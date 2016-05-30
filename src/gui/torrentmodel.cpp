@@ -34,10 +34,10 @@
 #include <QPalette>
 #include <QIcon>
 
-#include "core/bittorrent/session.h"
-#include "core/bittorrent/torrenthandle.h"
-#include "core/torrentfilter.h"
-#include "core/utils/fs.h"
+#include "base/bittorrent/session.h"
+#include "base/bittorrent/torrenthandle.h"
+#include "base/torrentfilter.h"
+#include "base/utils/fs.h"
 #include "torrentmodel.h"
 
 static QIcon getIconByState(BitTorrent::TorrentState state);
@@ -67,7 +67,7 @@ TorrentModel::TorrentModel(QObject *parent)
     // Listen for torrent changes
     connect(BitTorrent::Session::instance(), SIGNAL(torrentAdded(BitTorrent::TorrentHandle *const)), SLOT(addTorrent(BitTorrent::TorrentHandle *const)));
     connect(BitTorrent::Session::instance(), SIGNAL(torrentAboutToBeRemoved(BitTorrent::TorrentHandle *const)), SLOT(handleTorrentAboutToBeRemoved(BitTorrent::TorrentHandle *const)));
-    connect(BitTorrent::Session::instance(), SIGNAL(torrentStatusUpdated(BitTorrent::TorrentHandle *const)), this, SLOT(handleTorrentStatusUpdated(BitTorrent::TorrentHandle *const)));
+    connect(BitTorrent::Session::instance(), SIGNAL(torrentsUpdated()), SLOT(handleTorrentsUpdated()));
 
     connect(BitTorrent::Session::instance(), SIGNAL(torrentFinished(BitTorrent::TorrentHandle *const)), SLOT(handleTorrentStatusUpdated(BitTorrent::TorrentHandle *const)));
     connect(BitTorrent::Session::instance(), SIGNAL(torrentMetadataLoaded(BitTorrent::TorrentHandle *const)), SLOT(handleTorrentStatusUpdated(BitTorrent::TorrentHandle *const)));
@@ -104,7 +104,7 @@ QVariant TorrentModel::headerData(int section, Qt::Orientation orientation, int 
             case TR_UPSPEED: return tr("Up Speed", "i.e: Upload speed");
             case TR_RATIO: return tr("Ratio", "Share ratio");
             case TR_ETA: return tr("ETA", "i.e: Estimated Time of Arrival / Time left");
-            case TR_LABEL: return tr("Label");
+            case TR_CATEGORY: return tr("Category");
             case TR_ADD_DATE: return tr("Added On", "Torrent was added to transfer list on 01/01/2010 08:00");
             case TR_SEED_DATE: return tr("Completed On", "Torrent was completed on 01/01/2010 08:00");
             case TR_TRACKER: return tr("Tracker");
@@ -185,9 +185,9 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case TR_STATUS:
         return static_cast<int>(torrent->state());
     case TR_SEEDS:
-        return (role == Qt::DisplayRole) ? torrent->seedsCount() : torrent->completeCount();
+        return (role == Qt::DisplayRole) ? torrent->seedsCount() : torrent->totalSeedsCount();
     case TR_PEERS:
-        return (role == Qt::DisplayRole) ? (torrent->peersCount() - torrent->seedsCount()) : torrent->incompleteCount();
+        return (role == Qt::DisplayRole) ? torrent->leechsCount() : torrent->totalLeechersCount();
     case TR_DLSPEED:
         return torrent->downloadPayloadRate();
     case TR_UPSPEED:
@@ -196,8 +196,8 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return torrent->eta();
     case TR_RATIO:
         return torrent->realRatio();
-    case TR_LABEL:
-        return torrent->label();
+    case TR_CATEGORY:
+        return torrent->category();
     case TR_ADD_DATE:
         return torrent->addedTime();
     case TR_SEED_DATE:
@@ -221,7 +221,7 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case TR_TIME_ELAPSED:
         return (role == Qt::DisplayRole) ? torrent->activeTime() : torrent->seedingTime();
     case TR_SAVE_PATH:
-        return torrent->savePathParsed();
+        return Utils::Fs::toNativePath(torrent->savePath());
     case TR_COMPLETED:
         return torrent->completedSize();
     case TR_RATIO_LIMIT:
@@ -250,13 +250,13 @@ bool TorrentModel::setData(const QModelIndex &index, const QVariant &value, int 
     BitTorrent::TorrentHandle *const torrent = m_torrents.value(index.row());
     if (!torrent) return false;
 
-    // Label, seed date and Name columns can be edited
+    // Category, seed date and Name columns can be edited
     switch(index.column()) {
     case TR_NAME:
         torrent->setName(value.toString());
         break;
-    case TR_LABEL:
-        torrent->setLabel(value.toString());
+    case TR_CATEGORY:
+        torrent->setCategory(value.toString());
         break;
     default:
         return false;
@@ -307,6 +307,11 @@ void TorrentModel::handleTorrentStatusUpdated(BitTorrent::TorrentHandle *const t
         emit dataChanged(index(row, 0), index(row, columnCount() - 1));
 }
 
+void TorrentModel::handleTorrentsUpdated()
+{
+    emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1));
+}
+
 // Static functions
 
 QIcon getIconByState(BitTorrent::TorrentState state)
@@ -333,8 +338,11 @@ QIcon getIconByState(BitTorrent::TorrentState state)
         return getQueuedIcon();
     case BitTorrent::TorrentState::CheckingDownloading:
     case BitTorrent::TorrentState::CheckingUploading:
+    case BitTorrent::TorrentState::QueuedForChecking:
+    case BitTorrent::TorrentState::CheckingResumeData:
         return getCheckingIcon();
     case BitTorrent::TorrentState::Unknown:
+    case BitTorrent::TorrentState::MissingFiles:
     case BitTorrent::TorrentState::Error:
         return getErrorIcon();
     default:
@@ -345,40 +353,50 @@ QIcon getIconByState(BitTorrent::TorrentState state)
 
 QColor getColorByState(BitTorrent::TorrentState state)
 {
+    // Color names taken from http://cloford.com/resources/colours/500col.htm
     bool dark = isDarkTheme();
 
     switch (state) {
     case BitTorrent::TorrentState::Downloading:
     case BitTorrent::TorrentState::ForcedDownloading:
     case BitTorrent::TorrentState::DownloadingMetadata:
-        return QColor(34, 139, 34); // Forest Green
+        if (!dark)
+            return QColor(34, 139, 34); // Forest Green
+        else
+            return QColor(50, 205, 50); // Lime Green
     case BitTorrent::TorrentState::Allocating:
     case BitTorrent::TorrentState::StalledDownloading:
     case BitTorrent::TorrentState::StalledUploading:
         if (!dark)
             return QColor(0, 0, 0); // Black
         else
-            return QColor(255, 255, 255); // White
+            return QColor(204, 204, 204); // Gray 80
     case BitTorrent::TorrentState::Uploading:
     case BitTorrent::TorrentState::ForcedUploading:
         if (!dark)
             return QColor(65, 105, 225); // Royal Blue
         else
-            return QColor(100, 149, 237); // Cornflower Blue
+            return QColor(99, 184, 255); // Steel Blue 1
     case BitTorrent::TorrentState::PausedDownloading:
         return QColor(250, 128, 114); // Salmon
     case BitTorrent::TorrentState::PausedUploading:
         if (!dark)
             return QColor(0, 0, 139); // Dark Blue
         else
-            return QColor(65, 105, 225); // Royal Blue
+            return QColor(79, 148, 205); // Steel Blue 3
     case BitTorrent::TorrentState::Error:
+    case BitTorrent::TorrentState::MissingFiles:
         return QColor(255, 0, 0); // red
     case BitTorrent::TorrentState::QueuedDownloading:
     case BitTorrent::TorrentState::QueuedUploading:
     case BitTorrent::TorrentState::CheckingDownloading:
     case BitTorrent::TorrentState::CheckingUploading:
-        return QColor(0, 128, 128); // Teal
+    case BitTorrent::TorrentState::QueuedForChecking:
+    case BitTorrent::TorrentState::CheckingResumeData:
+        if (!dark)
+            return QColor(0, 128, 128); // Teal
+        else
+            return QColor(0, 205, 205); // Cyan 3
     case BitTorrent::TorrentState::Unknown:
         return QColor(255, 0, 0); // red
     default:

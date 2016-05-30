@@ -33,12 +33,12 @@
 #include <QFile>
 #include <QUrl>
 
-#include "core/utils/misc.h"
-#include "core/utils/fs.h"
-#include "core/net/downloadmanager.h"
-#include "core/net/downloadhandler.h"
-#include "core/bittorrent/trackerentry.h"
-#include "core/bittorrent/torrenthandle.h"
+#include "base/utils/misc.h"
+#include "base/utils/fs.h"
+#include "base/net/downloadmanager.h"
+#include "base/net/downloadhandler.h"
+#include "base/bittorrent/trackerentry.h"
+#include "base/bittorrent/torrenthandle.h"
 #include "guiiconprovider.h"
 #include "trackersadditiondlg.h"
 
@@ -53,13 +53,19 @@ TrackersAdditionDlg::TrackersAdditionDlg(BitTorrent::TorrentHandle *const torren
 
 QStringList TrackersAdditionDlg::newTrackers() const
 {
-    return trackers_list->toPlainText().trimmed().split("\n");
+    QStringList cleanTrackers;
+    foreach (QString url, trackers_list->toPlainText().split("\n")) {
+        url = url.trimmed();
+        if (!url.isEmpty())
+            cleanTrackers << url;
+    }
+    return cleanTrackers;
 }
 
 void TrackersAdditionDlg::on_uTorrentListButton_clicked()
 {
     uTorrentListButton->setEnabled(false);
-    Net::DownloadHandler *handler = Net::DownloadManager::instance()->downloadUrl(QString("http://www.torrentz.com/announce_%1").arg(m_torrent->hash()));
+    Net::DownloadHandler *handler = Net::DownloadManager::instance()->downloadUrl(list_url->text(), true);
     connect(handler, SIGNAL(downloadFinished(QString, QString)), this, SLOT(parseUTorrentList(QString, QString)));
     connect(handler, SIGNAL(downloadFailed(QString, QString)), this, SLOT(getTrackerError(QString, QString)));
     //Just to show that it takes times

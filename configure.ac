@@ -12,23 +12,11 @@ AM_INIT_AUTOMAKE
 
 # Define --wth-* and --enable-* arguments
 
-AC_ARG_WITH(qt5,
-            [AS_HELP_STRING([--with-qt5],
-                            [Compile using Qt5 (default=no)])],
+AC_ARG_WITH(qt4,
+            [AS_HELP_STRING([--with-qt4],
+                            [Compile using Qt4 (default=no)])],
             [],
-            [with_qt5=no])
-
-AC_ARG_WITH(libtorrent-rasterbar0.16,
-            [AS_HELP_STRING([--with-libtorrent-rasterbar0.16],
-                            [Compile using libtorrent-rasterbar 0.16.x series (default=no)])],
-            [],
-            [with_libtorrent_rasterbar0_16=no])
-
-AC_ARG_WITH(geoip-database-embedded,
-            [AS_HELP_STRING([--with-geoip-database-embedded],
-                            [Embed the GeoIP database in the qBittorrent executable (please follow instructions in src/gui/geoip/README) (default=no)])],
-            [],
-            [with_geoip_database_embedded=no])
+            [with_qt4=no])
 
 AC_ARG_WITH(qtsingleapplication,
             [AS_HELP_STRING([--with-qtsingleapplication=@<:@system|shipped@:>@],
@@ -107,7 +95,6 @@ AS_CASE(["x$enable_gui"],
         ["xno"],
               [AC_MSG_RESULT([no])
               enable_qt_dbus=[no]
-              enable_geoip_database=[no]
               QBT_ADD_CONFIG="$QBT_ADD_CONFIG nogui"],
         [AC_MSG_RESULT([$enable_gui])
         AC_MSG_ERROR([Unknown option "$enable_gui". Use either "yes" or "no".])])
@@ -134,16 +121,16 @@ AS_CASE(["x$enable_webui"],
         [AC_MSG_RESULT([$enable_webui])
         AC_MSG_ERROR([Unknown option "$enable_webui". Use either "yes" or "no".])])
 
-AC_MSG_CHECKING([whether Qt5 should be enabled])
-AS_CASE(["x$with_qt5"],
+AC_MSG_CHECKING([whether Qt4 should be enabled])
+AS_CASE(["x$with_qt4"],
         ["xno"],
               [AC_MSG_RESULT([no])
-              FIND_QT4()],
+              FIND_QT5()],
         ["xyes"],
                [AC_MSG_RESULT([yes])
-               FIND_QT5()],
-        [AC_MSG_RESULT([$with_qt5])
-        AC_MSG_ERROR([Unknown option "$with_qt5". Use either "yes" or "no".])])
+               FIND_QT4()],
+        [AC_MSG_RESULT([$with_qt4])
+        AC_MSG_ERROR([Unknown option "$with_qt4". Use either "yes" or "no".])])
 AS_IF([test "x$QT_QMAKE" = "x"],
       [AC_MSG_ERROR([Could not find qmake])
       ])
@@ -181,34 +168,6 @@ AS_IF([test "x$BOOST_SYSTEM_LIB" = "x"],
       [AC_MSG_NOTICE([Boost.System LIB: $BOOST_SYSTEM_LIB])
       LIBS="$BOOST_SYSTEM_LIB $LIBS"])
 
-AC_MSG_CHECKING([whether to compile using libtorrent-rasterbar 0.16.x])
-AS_CASE(["x$with_libtorrent_rasterbar0_16"],
-        ["xno"],
-              [AC_MSG_RESULT([no])
-              PKG_CHECK_MODULES(libtorrent,
-                               [libtorrent-rasterbar >= 1.0.0],
-                               [CPPFLAGS="$libtorrent_CFLAGS $CPPFLAGS"
-                               LIBS="$libtorrent_LIBS $LIBS"])],
-        ["xyes"],
-               [AC_MSG_RESULT([yes])
-               PKG_CHECK_MODULES(libtorrent,
-                                [libtorrent-rasterbar >= 0.16.0],
-                                [CPPFLAGS="$libtorrent_CFLAGS $CPPFLAGS"
-                                LIBS="$libtorrent_LIBS $LIBS"])],
-        [AC_MSG_RESULT([$with_libtorrent_rasterbar0_16])
-        AC_MSG_ERROR([Unknown option "$with_libtorrent_rasterbar0_16". Use either "yes" or "no".])])
-
-AC_MSG_CHECKING([whether to embed the GeoIP database])
-AS_CASE(["x$with_geoip_database_embedded"],
-        ["xno"],
-              [AC_MSG_RESULT([no])
-              QBT_REMOVE_DEFINES="$QBT_REMOVE_DEFINES WITH_GEOIP_EMBEDDED"],
-        ["xyes"],
-               [AC_MSG_RESULT([yes])
-               QBT_ADD_DEFINES="$QBT_ADD_DEFINES WITH_GEOIP_EMBEDDED"],
-        [AC_MSG_RESULT([$with_geoip_database_embedded])
-        AC_MSG_ERROR([Unknown option "$with_geoip_database_embedded". Use either "yes" or "no".])])
-
 AC_MSG_CHECKING([which qtsingleapplication to use])
 AS_CASE(["x$with_qtsingleapplication"],
         ["xshipped"],
@@ -220,7 +179,7 @@ AS_CASE(["x$with_qtsingleapplication"],
         [AC_MSG_RESULT([$with_qtsingleapplication])
         AC_MSG_ERROR([Unknown option "$with_qtsingleapplication". Use either "system" or "shipped".])])
 
-AS_IF([test "x$with_qt5" = "xno"],
+AS_IF([test "x$with_qt4" = "xyes"],
       [AC_MSG_CHECKING([which qjson to use])
       AS_CASE(["x$with_qjson"],
               ["xshipped"],
@@ -236,6 +195,11 @@ AS_IF([test "x$with_qt5" = "xno"],
               [AC_MSG_RESULT([$with_qjson])
               AC_MSG_ERROR([Unknown option "$with_qjson". Use either "system" or "shipped".])])
      ])
+
+PKG_CHECK_MODULES(libtorrent,
+                  [libtorrent-rasterbar >= 1.0.6],
+                  [CPPFLAGS="$libtorrent_CFLAGS $CPPFLAGS"
+                  LIBS="$libtorrent_LIBS $LIBS"])
 
 PKG_CHECK_MODULES(zlib,
                  [zlib],
@@ -258,8 +222,11 @@ extract() {
     return 1
   fi
 
+  # BSD sed needs an actual newline character in the substitute command
+  new_line='
+'
   # Convert " -" to "\n" if not between quotes and remove possible leading white spaces
-  string=$(echo " $*" | $SED -e 's: -:\n:g' -e 's:"\(.*\)\n\(.*\)":\"\1 -\2":g' -e "s:'\(.*\)\n\(.*\)':\'\1 -\2':g" -e 's/^[[:space:]]*//')
+  string=$(echo " $*" | $SED -e "s: -:\\${new_line}:g" -e 's:"\(.*\)\n\(.*\)":\"\1 -\2":g' -e "s:'\(.*\)\n\(.*\)':\'\1 -\2':g" -e 's/^[[:space:]]*//')
   SAVEIFS=$IFS
   IFS=$(printf "\n\b")
   for i in $string; do
@@ -294,7 +261,7 @@ AS_IF([test "x$enable_systemd" = "xyes"],
 AC_MSG_NOTICE([Running qmake to generate the makefile...])
 CONFDIR="$( cd "$( dirname "$0" )" && pwd )"
 
-$QT_QMAKE -r [$CONFDIR]/qbittorrent.pro
+$QT_QMAKE -r [$CONFDIR]/qbittorrent.pro "QMAKE_LRELEASE=$QMAKE_LRELEASE"
 
 ret="$?"
 

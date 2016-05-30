@@ -37,13 +37,17 @@
 #include <QDebug>
 #include <QUrl>
 #include <QMessageBox>
+#ifdef QBT_USES_QT5
+#include <QTableView>
+#include <QHeaderView>
+#endif
 
-#include "core/bittorrent/session.h"
-#include "core/bittorrent/torrenthandle.h"
-#include "core/bittorrent/peerinfo.h"
-#include "core/bittorrent/trackerentry.h"
-#include "core/preferences.h"
-#include "core/utils/misc.h"
+#include "base/bittorrent/session.h"
+#include "base/bittorrent/torrenthandle.h"
+#include "base/bittorrent/peerinfo.h"
+#include "base/bittorrent/trackerentry.h"
+#include "base/preferences.h"
+#include "base/utils/misc.h"
 #include "propertieswidget.h"
 #include "trackersadditiondlg.h"
 #include "guiiconprovider.h"
@@ -79,6 +83,16 @@ TrackerList::TrackerList(PropertiesWidget *properties): QTreeWidget(), propertie
   editHotkey = new QShortcut(QKeySequence("F2"), this, SLOT(editSelectedTracker()), 0, Qt::WidgetShortcut);
   connect(this, SIGNAL(doubleClicked(QModelIndex)), SLOT(editSelectedTracker()));
   deleteHotkey = new QShortcut(QKeySequence(QKeySequence::Delete), this, SLOT(deleteSelectedTrackers()), 0, Qt::WidgetShortcut);
+  copyHotkey = new QShortcut(QKeySequence(Qt::ControlModifier + Qt::Key_C), this, SLOT(copyTrackerUrl()), 0, Qt::WidgetShortcut);
+
+#ifdef QBT_USES_QT5
+    // This hack fixes reordering of first column with Qt5.
+    // https://github.com/qtproject/qtbase/commit/e0fc088c0c8bc61dbcaf5928b24986cd61a22777
+    QTableView unused;
+    unused.setVerticalHeader(this->header());
+    this->header()->setParent(this);
+    unused.setVerticalHeader(new QHeaderView(Qt::Horizontal));
+#endif
 
   loadSettings();
 }
@@ -86,6 +100,7 @@ TrackerList::TrackerList(PropertiesWidget *properties): QTreeWidget(), propertie
 TrackerList::~TrackerList() {
   delete editHotkey;
   delete deleteHotkey;
+  delete copyHotkey;
   saveSettings();
 }
 
@@ -394,22 +409,27 @@ void TrackerList::editSelectedTracker() {
     torrent->replaceTrackers(trackers);
     if (!torrent->isPaused()) {
       torrent->forceReannounce();
-      torrent->forceDHTAnnounce();
     }
 }
 
-#if LIBTORRENT_VERSION_NUM >= 10000
 void TrackerList::reannounceSelected() {
-    BitTorrent::TorrentHandle *const torrent = properties->getCurrentTorrent();
-    if (!torrent) return;
-
-    QList<QTreeWidgetItem *> selected_items = getSelectedTrackerItems();
+    QList<QTreeWidgetItem *> selected_items = selectedItems();
     if (selected_items.isEmpty()) return;
 
+    BitTorrent::TorrentHandle *const torrent = properties->getCurrentTorrent();
+    if (!torrent) return;
     QList<BitTorrent::TrackerEntry> trackers = torrent->trackers();
-    for (int i = 0; i < trackers.size(); ++i) {
-      foreach (QTreeWidgetItem* w, selected_items) {
-        if (w->text(COL_URL) == trackers[i].url()) {
+
+    foreach (QTreeWidgetItem* item, selected_items) {
+      // DHT case
+      if (item == dht_item) {
+        torrent->forceDHTAnnounce();
+        continue;
+      }
+
+      // Trackers case
+      for (int i = 0; i < trackers.size(); ++i) {
+        if (item->text(COL_URL) == trackers[i].url()) {
           torrent->forceReannounce(i);
           break;
         }
@@ -418,8 +438,6 @@ void TrackerList::reannounceSelected() {
 
     loadTrackers();
 }
-
-#endif
 
 void TrackerList::showTrackerListMenu(QPoint) {
   BitTorrent::TorrentHandle *const torrent = properties->getCurrentTorrent();
@@ -436,14 +454,10 @@ void TrackerList::showTrackerListMenu(QPoint) {
     copyAct = menu.addAction(GuiIconProvider::instance()->getIcon("edit-copy"), tr("Copy tracker URL"));
     editAct = menu.addAction(GuiIconProvider::instance()->getIcon("edit-rename"),tr("Edit selected tracker URL"));
   }
-#if LIBTORRENT_VERSION_NUM >= 10000
   QAction *reannounceSelAct = NULL;
-#endif
   QAction *reannounceAct = NULL;
   if (!torrent->isPaused()) {
-#if LIBTORRENT_VERSION_NUM >= 10000
     reannounceSelAct = menu.addAction(GuiIconProvider::instance()->getIcon("view-refresh"), tr("Force reannounce to selected trackers"));
-#endif
     menu.addSeparator();
     reannounceAct = menu.addAction(GuiIconProvider::instance()->getIcon("view-refresh"), tr("Force reannounce to all trackers"));
   }
@@ -461,14 +475,14 @@ void TrackerList::showTrackerListMenu(QPoint) {
     deleteSelectedTrackers();
     return;
   }
-#if LIBTORRENT_VERSION_NUM >= 10000
   if (act == reannounceSelAct) {
     reannounceSelected();
     return;
   }
-#endif
   if (act == reannounceAct) {
-    properties->getCurrentTorrent()->forceReannounce();
+    BitTorrent::TorrentHandle *h = properties->getCurrentTorrent();
+    h->forceReannounce();
+    h->forceDHTAnnounce();
     return;
   }
   if (act == editAct) {

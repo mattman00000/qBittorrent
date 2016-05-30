@@ -1,5 +1,6 @@
-#VERSION: 2.01
+#VERSION: 2.04
 #AUTHORS: Christophe Dumez (chris@qbittorrent.org)
+#CONTRIBUTORS: Diego de las Heras (ngosang@hotmail.es)
 
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -26,14 +27,13 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 from HTMLParser import HTMLParser
-from httplib import HTTPConnection as http
 #qBt
 from novaprinter import prettyPrinter
-from helpers import download_file
+from helpers import download_file, retrieve_url
 
 class extratorrent(object):
     """ Search engine class """
-    url = 'http://extratorrent.cc'
+    url = 'https://extratorrent.cc'
     name = 'ExtraTorrent'
     supported_categories = {'all'       : '0',
                             'movies'    : '4',
@@ -75,7 +75,7 @@ class extratorrent(object):
                         #description
                         self.current_item["desc_link"] = "".join((self.url, link))
                         #remove view at the beginning
-                        self.current_item["name"] = params["title"][5:].replace("&amp;", "&")
+                        self.current_item["name"] = params["title"][5:-8].replace("&amp;", "&")
                         self.pending_size = True
                     elif link[8] == "_":
                         #download link
@@ -139,25 +139,18 @@ class extratorrent(object):
 
     def search(self, what, cat="all"):
         """ Performs search """
-        connection = http("extratorrent.cc")
+        query = "".join((self.url, "/advanced_search/?with=", what, "&s_cat=", self.supported_categories[cat]))
 
-        query = "".join(("/advanced_search/?with=", what, "&s_cat=", self.supported_categories[cat]))
-
-        connection.request("GET", query)
-        response = connection.getresponse()
-        if response.status != 200:
-            return
+        response = retrieve_url(query)
 
         list_searches = []
         parser = self.MyHtmlParseWithBlackJack(list_searches, self.url)
-        parser.feed(response.read().decode('utf-8'))
+        parser.feed(response)
         parser.close()
 
         for search_query in list_searches:
-            connection.request("GET", search_query)
-            response = connection.getresponse()
-            parser.feed(response.read().decode('utf-8'))
+            response = retrieve_url(self.url + search_query)
+            parser.feed(response)
             parser.close()
 
-        connection.close()
         return

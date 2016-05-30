@@ -29,11 +29,12 @@
  */
 
 #include <cmath>
+#include <QDebug>
 #include "downloadedpiecesbar.h"
 
 DownloadedPiecesBar::DownloadedPiecesBar(QWidget *parent): QWidget(parent)
 {
-  setFixedHeight(BAR_HEIGHT);
+  setToolTip(QString("%1\n%2\n%3").arg(tr("White: Missing pieces")).arg(tr("Green: Partial pieces")).arg(tr("Blue: Completed pieces")));
 
   m_bgColor = 0xffffff;
   m_borderColor = palette().color(QPalette::Dark).rgb();
@@ -56,24 +57,17 @@ QVector<float> DownloadedPiecesBar::bitfieldToFloatVector(const QBitArray &vecin
   // image.x(1) = pieces.x(1.7 >= x < 3.4)
 
   for (int x = 0; x < reqSize; ++x) {
-
-    // don't use previously calculated value "ratio" here!!!
-    // float cannot save irrational number like 7/9, if this number will be rounded up by std::ceil
-    // give you x2 == pieces.size(), and index out of range: pieces[x2]
-    // this code is safe, so keep that in mind when you try optimize more.
-    // tested with size = 3000000ul
-
     // R - real
-    const float fromR = (x * vecin.size()) / (float)reqSize;
-    const float toR = ((x + 1) * vecin.size()) / (float)reqSize;
+    const float fromR = x * ratio;
+    const float toR = (x + 1) * ratio;
 
     // C - integer
     int fromC = fromR;// std::floor not needed
     int toC = std::ceil(toR);
+    if (toC > vecin.size())
+        --toC;
 
     // position in pieces table
-    // libtorrent::bitfield::m_size is unsigned int(31 bits), so qlonglong is not needed
-    // tested with size = 3000000ul
     int x2 = fromC;
 
     // little speed up for really big pieces table, 10K+ size
@@ -85,7 +79,7 @@ QVector<float> DownloadedPiecesBar::bitfieldToFloatVector(const QBitArray &vecin
     // case when calculated range is (15.2 >= x < 15.7)
     if (x2 == toCMinusOne) {
       if (vecin[x2]) {
-        value += toR - fromR;
+        value += ratio;
       }
       ++x2;
     }
@@ -150,6 +144,10 @@ void DownloadedPiecesBar::updateImage()
 {
   //  qDebug() << "updateImage";
   QImage image2(width() - 2, 1, QImage::Format_RGB888);
+  if (image2.isNull()) {
+      qDebug() << "QImage image2() allocation failed, width():" << width();
+      return;
+  }
 
   if (m_pieces.isEmpty()) {
     image2.fill(0xffffff);

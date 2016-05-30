@@ -32,12 +32,25 @@
 
 #include <QKeyEvent>
 #include <QModelIndexList>
+#ifdef QBT_USES_QT5
+#include <QTableView>
+#include <QHeaderView>
+#endif
 
 #include "torrentcontentmodelitem.h"
 
 TorrentContentTreeView::TorrentContentTreeView(QWidget* parent)
   : QTreeView(parent)
-{}
+{
+#ifdef QBT_USES_QT5
+    // This hack fixes reordering of first column with Qt5.
+    // https://github.com/qtproject/qtbase/commit/e0fc088c0c8bc61dbcaf5928b24986cd61a22777
+    QTableView unused;
+    unused.setVerticalHeader(header());
+    header()->setParent(this);
+    unused.setVerticalHeader(new QHeaderView(Qt::Horizontal));
+#endif
+}
 
 void TorrentContentTreeView::keyPressEvent(QKeyEvent *event) {
   if (event->key() != Qt::Key_Space && event->key() != Qt::Key_Select) {

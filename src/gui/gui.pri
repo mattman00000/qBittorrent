@@ -3,7 +3,6 @@ INCLUDEPATH += $$PWD
 include(lineedit/lineedit.pri)
 include(properties/properties.pri)
 include(rss/rss.pri)
-include(geoip/geoip.pri)
 include(powermanagement/powermanagement.pri)
 unix:!macx:dbus: include(qtnotify/qtnotify.pri)
 
@@ -29,7 +28,6 @@ HEADERS += \
     $$PWD/downloadfromurldlg.h \
     $$PWD/trackerlogin.h \
     $$PWD/hidabletabwidget.h \
-    $$PWD/torrentimportdlg.h \
     $$PWD/executionlog.h \
     $$PWD/guiiconprovider.h \
     $$PWD/updownratiodlg.h \
@@ -40,9 +38,18 @@ HEADERS += \
     $$PWD/messageboxraised.h \
     $$PWD/options_imp.h \
     $$PWD/advancedsettings.h \
-    $$PWD/shutdownconfirm.h \
+    $$PWD/shutdownconfirmdlg.h \
     $$PWD/torrentmodel.h \
-    $$PWD/torrentcreatordlg.h
+    $$PWD/torrentcreatordlg.h \
+    $$PWD/scanfoldersdelegate.h \
+    $$PWD/search/searchwidget.h \
+    $$PWD/search/searchtab.h \
+    $$PWD/search/pluginselectdlg.h \
+    $$PWD/search/pluginsourcedlg.h \
+    $$PWD/search/searchlistdelegate.h \
+    $$PWD/search/searchsortmodel.h \
+    $$PWD/cookiesmodel.h \
+    $$PWD/cookiesdialog.h
 
 SOURCES += \
     $$PWD/mainwindow.cpp \
@@ -57,7 +64,6 @@ SOURCES += \
     $$PWD/torrentcontentmodelfile.cpp \
     $$PWD/torrentcontentfiltermodel.cpp \
     $$PWD/torrentcontenttreeview.cpp \
-    $$PWD/torrentimportdlg.cpp \
     $$PWD/executionlog.cpp \
     $$PWD/speedlimitdlg.cpp \
     $$PWD/previewselect.cpp \
@@ -69,11 +75,21 @@ SOURCES += \
     $$PWD/statsdialog.cpp \
     $$PWD/messageboxraised.cpp \
     $$PWD/statusbar.cpp \
+    $$PWD/advancedsettings.cpp \
     $$PWD/trackerlogin.cpp \
     $$PWD/options_imp.cpp \
-    $$PWD/shutdownconfirm.cpp \
+    $$PWD/shutdownconfirmdlg.cpp \
     $$PWD/torrentmodel.cpp \
-    $$PWD/torrentcreatordlg.cpp
+    $$PWD/torrentcreatordlg.cpp \
+    $$PWD/scanfoldersdelegate.cpp \
+    $$PWD/search/searchwidget.cpp \
+    $$PWD/search/searchtab.cpp \
+    $$PWD/search/pluginselectdlg.cpp \
+    $$PWD/search/pluginsourcedlg.cpp \
+    $$PWD/search/searchlistdelegate.cpp \
+    $$PWD/search/searchsortmodel.cpp \
+    $$PWD/cookiesmodel.cpp \
+    $$PWD/cookiesdialog.cpp
 
 win32|macx {
     HEADERS += $$PWD/programupdater.h
@@ -89,12 +105,17 @@ FORMS += \
     $$PWD/bandwidth_limit.ui \
     $$PWD/updownratiodlg.ui \
     $$PWD/confirmdeletiondlg.ui \
-    $$PWD/torrentimportdlg.ui \
+    $$PWD/shutdownconfirmdlg.ui \
     $$PWD/executionlog.ui \
     $$PWD/addnewtorrentdialog.ui \
     $$PWD/autoexpandabledialog.ui \
     $$PWD/statsdialog.ui \
     $$PWD/options.ui \
-    $$PWD/torrentcreatordlg.ui
+    $$PWD/torrentcreatordlg.ui \
+    $$PWD/search/searchwidget.ui \
+    $$PWD/search/pluginselectdlg.ui \
+    $$PWD/search/pluginsourcedlg.ui \
+    $$PWD/search/searchtab.ui \
+    $$PWD/cookiesdialog.ui
 
 RESOURCES += $$PWD/about.qrc

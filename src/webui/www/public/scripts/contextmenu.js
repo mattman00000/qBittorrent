@@ -1,12 +1,12 @@
+var lastShownContexMenu = null;
 var ContextMenu = new Class({
-
     //implements
     Implements: [Options, Events],
 
     //options
     options: {
         actions: {},
-        menu: 'contextmenu',
+        menu: 'menu_id',
         stopEvent: true,
         targets: 'body',
         trigger: 'contextmenu',
@@ -54,6 +54,57 @@ var ContextMenu = new Class({
         });
     },
 
+    adjustMenuPosition: function(e) {
+        this.updateMenuItems();
+
+        // draw the menu off-screen to know the menu dimentions
+        this.menu.setStyles({
+            left: '-999em',
+            top: '-999em'
+        });
+
+        // position the menu
+        var xPos = e.page.x + this.options.offsets.x;
+        var yPos = e.page.y + this.options.offsets.y;
+        if (xPos + this.menu.offsetWidth > document.documentElement.clientWidth)
+            xPos -= this.menu.offsetWidth;
+        if (yPos + this.menu.offsetHeight > document.documentElement.clientHeight)
+            yPos -= this.menu.offsetHeight;
+        if (xPos < 0)
+            xPos = 0;
+        if (yPos < 0)
+            yPos = 0;
+        this.menu.setStyles({
+            left: xPos,
+            top: yPos,
+            position: 'absolute',
+            'z-index': '2000'
+        });
+
+        // position the sub-menu
+        var uls = this.menu.getElementsByTagName('ul');
+        for (var i = 0; i < uls.length; i++) {
+            var ul = uls[i];
+            var rectParent = ul.parentNode.getBoundingClientRect();
+            var xPosOrigin = rectParent.left;
+            var yPosOrigin = rectParent.bottom;
+            var xPos = xPosOrigin + rectParent.width - 1;
+            var yPos = yPosOrigin - rectParent.height - 1;
+            if (xPos + ul.offsetWidth > document.documentElement.clientWidth)
+                xPos -= (ul.offsetWidth + rectParent.width - 2);
+            if (yPos + ul.offsetHeight > document.documentElement.clientHeight)
+                yPos -= (ul.offsetHeight - rectParent.height - 2);
+            if (xPos < 0)
+                xPos = 0;
+            if (yPos < 0)
+                yPos = 0;
+            ul.setStyles({
+                'margin-left': xPos - xPosOrigin,
+                'margin-top': yPos - yPosOrigin
+            });
+        }
+    },
+
     addTarget: function(t) {
         this.targets[this.targets.length] = t;
         t.addEvent(this.options.trigger, function(e) {
@@ -65,13 +116,7 @@ var ContextMenu = new Class({
                 }
                 //record this as the trigger
                 this.options.element = $(t);
-                //position the menu
-                this.menu.setStyles({
-                    top: (e.page.y + this.options.offsets.y),
-                    left: (e.page.x + this.options.offsets.x),
-                    position: 'absolute',
-                    'z-index': '2000'
-                });
+                this.adjustMenuPosition(e);
                 //show the menu
                 this.show();
             }
@@ -95,13 +140,7 @@ var ContextMenu = new Class({
                     }
                     //record this as the trigger
                     this.options.element = $(el);
-                    //position the menu
-                    this.menu.setStyles({
-                        top: (e.page.y + this.options.offsets.y),
-                        left: (e.page.x + this.options.offsets.x),
-                        position: 'absolute',
-                        'z-index': '2000'
-                    });
+                    this.adjustMenuPosition(e);
                     //show the menu
                     this.show();
                 }
@@ -128,6 +167,76 @@ var ContextMenu = new Class({
         }.bind(this));
     },
 
+    updateMenuItems: function () {},
+
+    //show menu
+    show: function (trigger) {
+        if (lastShownContexMenu && lastShownContexMenu != this)
+            lastShownContexMenu.hide();
+        this.fx.start(1);
+        this.fireEvent('show');
+        this.shown = true;
+        lastShownContexMenu = this;
+        return this;
+    },
+
+    //hide the menu
+    hide: function (trigger) {
+        if (this.shown) {
+            this.fx.start(0);
+            //this.menu.fade('out');
+            this.fireEvent('hide');
+            this.shown = false;
+        }
+        return this;
+    },
+
+    setItemChecked: function (item, checked) {
+        this.menu.getElement('a[href$=' + item + ']').firstChild.style.opacity =
+             checked ? '1' : '0';
+        return this;
+    },
+
+    getItemChecked: function (item) {
+        return '0' != this.menu.getElement('a[href$=' + item + ']').firstChild.style.opacity;
+    },
+
+    //hide an item
+    hideItem: function (item) {
+        this.menu.getElement('a[href$=' + item + ']').parentNode.addClass('invisible');
+        return this;
+    },
+
+    //show an item
+    showItem: function (item) {
+        this.menu.getElement('a[href$=' + item + ']').parentNode.removeClass('invisible');
+        return this;
+    },
+
+    //disable the entire menu
+    disable: function () {
+        this.options.disabled = true;
+        return this;
+    },
+
+    //enable the entire menu
+    enable: function () {
+        this.options.disabled = false;
+        return this;
+    },
+
+    //execute an action
+    execute: function (action, element) {
+        if (this.options.actions[action]) {
+            this.options.actions[action](element, this);
+        }
+        return this;
+    }
+});
+
+var TorrentsTableContextMenu = new Class({
+    Extends: ContextMenu,
+
     updateMenuItems: function () {
         all_are_seq_dl = true;
         there_are_seq_dl = false;
@@ -136,12 +245,13 @@ var ContextMenu = new Class({
         all_are_downloaded = true;
         all_are_paused = true;
         there_are_paused = false;
-        all_are_super_seeding = true;
         all_are_force_start = true;
+        there_are_force_start = false;
+        all_are_super_seeding = true;
 
-        var h = myTable.selectedIds();
+        var h = torrentsTable.selectedRowsIds();
         h.each(function(item, index){
-            var data = myTable.rows.get(item).full_data;
+            var data = torrentsTable.rows.get(item).full_data;
 
             if (data['seq_dl'] != true)
                 all_are_seq_dl = false;
@@ -153,19 +263,20 @@ var ContextMenu = new Class({
             else
                 there_are_f_l_piece_prio = true;
 
-            if (data['force_start'] != true)
-                all_are_force_start = false;
-
             if (data['progress'] != 1.0) // not downloaded
                 all_are_downloaded = false;
             else if (data['super_seeding'] != true)
                 all_are_super_seeding = false;
 
-            state = data['state'];
-            if ((state != 'pausedUP') && (state != 'pausedDL'))
+            if (data['state'] != 'pausedUP' && data['state'] != 'pausedDL')
                 all_are_paused = false;
             else
                 there_are_paused = true;
+
+            if (data['force_start'] != true)
+                all_are_force_start = false;
+            else
+                there_are_force_start = true;
         });
 
         show_seq_dl = true;
@@ -178,9 +289,9 @@ var ContextMenu = new Class({
         if (!all_are_f_l_piece_prio && there_are_f_l_piece_prio)
             show_f_l_piece_prio = false;
 
-        this.setItemChecked('ForceStart', all_are_force_start);
-
         if (all_are_downloaded) {
+            this.hideItem('DownloadLimit');
+            this.menu.getElement('a[href$=UploadLimit]').parentNode.addClass('separator');
             this.hideItem('SequentialDownload');
             this.hideItem('FirstLastPiecePrio');
             this.showItem('SuperSeeding');
@@ -204,83 +315,54 @@ var ContextMenu = new Class({
             this.setItemChecked('SequentialDownload', all_are_seq_dl);
             this.setItemChecked('FirstLastPiecePrio', all_are_f_l_piece_prio);
 
+            this.showItem('DownloadLimit');
+            this.menu.getElement('a[href$=UploadLimit]').parentNode.removeClass('separator');
             this.hideItem('SuperSeeding');
         }
 
-        if (all_are_paused) {
-            this.showItem('Start');
+        this.showItem('Start');
+        this.showItem('Pause');
+        this.showItem('ForceStart');
+        if (all_are_paused)
             this.hideItem('Pause');
-        } else {
-            if (there_are_paused) {
-                this.showItem('Start');
-                this.showItem('Pause');
-            } else {
-                this.hideItem('Start');
-                this.showItem('Pause');
+        else if (all_are_force_start)
+            this.hideItem('ForceStart');
+        else if (!there_are_paused && !there_are_force_start)
+            this.hideItem('Start');
+    },
+
+    updateCategoriesSubMenu : function (category_list) {
+        var categoryList = $('contextCategoryList');
+        categoryList.empty();
+        categoryList.appendChild(new Element('li', {html: '<a href="javascript:torrentNewCategoryFN();"><img src="theme/list-add" alt="QBT_TR(New...)QBT_TR"/> QBT_TR(New...)QBT_TR</a>'}));
+        categoryList.appendChild(new Element('li', {html: '<a href="javascript:torrentSetCategoryFN(0);"><img src="theme/edit-clear" alt="QBT_TR(Reset)QBT_TR"/> QBT_TR(Reset)QBT_TR</a>'}));
+
+        var sortedCategories = []
+        Object.each(category_list, function (category) {
+            sortedCategories.push(category.name);
+        });
+        sortedCategories.sort();
+
+        var first = true;
+        Object.each(sortedCategories, function (categoryName) {
+            var categoryHash = genHash(categoryName);
+            var el = new Element('li', {html: '<a href="javascript:torrentSetCategoryFN(\'' + categoryHash + '\');"><img src="theme/inode-directory"/> ' + escapeHtml(categoryName) + '</a>'});
+            if (first) {
+                el.addClass('separator');
+                first = false;
             }
-        }
-    },
-
-    //show menu
-    show: function(trigger) {
-        this.updateMenuItems();
-        this.fx.start(1);
-        this.fireEvent('show');
-        this.shown = true;
-        return this;
-    },
-
-    //hide the menu
-    hide: function(trigger) {
-        if (this.shown) {
-            this.fx.start(0);
-            //this.menu.fade('out');
-            this.fireEvent('hide');
-            this.shown = false;
-        }
-        return this;
-    },
-
-    setItemChecked: function(item, checked) {
-        this.menu.getElement('a[href$=' + item + ']').firstChild.style.opacity =
-             checked ? '1' : '0';
-        return this;
-    },
-
-    getItemChecked: function(item) {
-        return '0' != this.menu.getElement('a[href$=' + item + ']').firstChild.style.opacity;
-    },
-
-    //hide an item
-    hideItem: function(item) {
-        this.menu.getElement('a[href$=' + item + ']').parentNode.addClass('invisible');
-        return this;
-    },
-
-    //show an item
-    showItem: function(item) {
-        this.menu.getElement('a[href$=' + item + ']').parentNode.removeClass('invisible');
-        return this;
-    },
-
-    //disable the entire menu
-    disable: function() {
-        this.options.disabled = true;
-        return this;
-    },
-
-    //enable the entire menu
-    enable: function() {
-        this.options.disabled = false;
-        return this;
-    },
-
-    //execute an action
-    execute: function(action, element) {
-        if (this.options.actions[action]) {
-            this.options.actions[action](element, this);
-        }
-        return this;
+            categoryList.appendChild(el);
+        });
     }
+});
 
+var CategoriesFilterContextMenu = new Class({
+    Extends: ContextMenu,
+    updateMenuItems: function () {
+        var id = this.options.element.id;
+        if (id != CATEGORIES_ALL && id != CATEGORIES_UNCATEGORIZED)
+            this.showItem('DeleteCategory');
+        else
+            this.hideItem('DeleteCategory');
+    }
 });

@@ -1,6 +1,8 @@
 ﻿All new code must follow the following coding guidelines.  
 If you make changes in a file that still uses another coding style, make sure that you follow these guidelines for your changes instead.  
-**Note:** I will now take your head if you forget and use another style. However, most probably the request will be delayed until you fix your coding style.
+**Note 1:** I will not take your head if you forget and use another style. However, most probably the request will be delayed until you fix your coding style.  
+**Note 2:** You can use the `uncrustify` program/tool to clean up any source file. Use it with the `uncrustify.cfg` configuration file found in the root folder.  
+**Note 3:** There is also a style for QtCreator but it doesn't cover all cases. In QtCreator `Tools->Options...->C++->Code Style->Import...` and choose the `codingStyleQtCreator.xml` file found in the root folder.  
 
 ### 1. Curly braces ###
 #### a. Function blocks, class/struct definitions, namespaces ####
@@ -10,30 +12,42 @@ int myFunction(int a)
     //code
 }
 
-myClass::myClass(int *parent)
+void myFunction() {} // empty body
+
+MyClass::MyClass(int *parent)
     : m_parent(parent)
 {
     //initialize
 }
 
-int myClass::myMethod(int a)
+int MyClass::myMethod(int a)
 {
     //code
 }
 
-class myOtherClass
+class MyOtherClass
 {
 public:
     //code
+    
 protected:
     //code
+    
 private:
     //code
 };
 
-namespace id
+namespace Name
 {
     //code
+}
+
+// Lambdas
+[](int arg1, int arg2) -> bool { return arg1 < arg2; }
+
+[this](int arg)
+{
+    this->acc += arg;
 }
 ```
 
@@ -73,6 +87,16 @@ case 2: {
 default:
     //code
 }
+```
+
+#### d. Brace enclosed initializers ####
+Unlike single-line functions, you must not insert spaces between the brackets and concluded expressions.<br/>
+But you must insert a space between the variable name and initializer.
+```c++
+Class obj {}; // empty
+Class obj {expr};
+Class obj {expr1, /*...,*/ exprN};
+QVariantMap map {{"key1", 5}, {"key2", 10}};
 ```
 
 ### 2. If blocks ###
@@ -125,10 +149,10 @@ UTF-8 and Unix-like line ending (LF). Unless some platform specific files need o
 Initialization lists should be vertical. This will allow for more easily readable diffs. The initialization colon should be indented and in its own line along with first argument. The rest of the arguments should be indented too and have the comma prepended.
 ```c++
 myClass::myClass(int a, int b, int c, int d)
-    : priv_a(a)
-    , priv_b(b)
-    , priv_c(c)
-    , priv_d(d)
+    : m_a(a)
+    , m_b(b)
+    , m_c(c)
+    , m_d(d)
 {
     //code
 }
@@ -137,7 +161,7 @@ myClass::myClass(int a, int b, int c, int d)
 ### 6. Enums.###
 Enums should be vertical. This will allow for more easily readable diffs. The members should be indented.
 ```c++
-enum days
+enum Days
 {
     Monday,
     Tuesday,
@@ -149,7 +173,74 @@ enum days
 };
 ```
 
-### 7. Misc.###
+### 7. Names.###
+All names should be camelCased.
+
+#### a. Type names and namespaces ####
+Type names and namespaces start with Upper case letter (except POD types).
+```c++
+class ClassName {};
+
+struct StructName {};
+
+enum EnumName {};
+
+typedef QList<ClassName> SomeList;
+
+namespace NamespaceName
+{
+}
+```
+
+#### b. Variable names ####
+Variable names start with lower case letter.
+```c++
+int myVar;
+```
+
+#### c. Private member variable names ####
+Private member variable names start with lower case letter and should have ```m_``` prefix.
+```c++
+class MyClass
+{
+    int m_myVar;
+}
+```
+
+### 8. Header inclusion order.###
+The headers should be placed in the following order:
+ 1. Module header (in .cpp)
+ 2. System/Qt/Boost etc. headers (splitted in subcategories if you have many).
+ 3. Application headers, starting from *Base* headers.
+
+The headers should be ordered alphabetically within each group (subgroup).<br/>
+<br/>
+Example:
+```c++
+// examplewidget.cpp
+
+#include "examplewidget.h"
+
+#include <cmath>
+#include <cstdio>
+
+#include <QDateTime>
+#include <QList>
+#include <QString>
+#include <QUrl>
+
+#include <libtorrent/version.hpp>
+
+#include "base/bittorrent/session.h"
+#include "base/bittorrent/infohash.h"
+#include "base/utils/fs.h"
+#include "base/utils/misc.h"
+#include "base/utils/string.h"
+#include "ui_examplewidget.h"
+
+```
+
+### 9. Misc.###
 
 * Line breaks for long lines with operation:
 
@@ -159,11 +250,51 @@ a += "b"
   + "d";
 ```
 
+* **auto** keyword
+
+We allow the use of the **auto** keyword only where it is strictly necessary 
+(for example, to declare a lambda object, etc.), or where it **enhances** the readability of the code.
+Declarations for which one can gather enough information about the object interface (type) from its name 
+or the usage pattern (an iterator or a loop variable are good examples of clear patterns) 
+or the right part of the expression nicely fit here.<br/>
+<br/>
+When weighing whether to use an auto-typed variable please think about potential reviewers of your code, 
+who will read it as a plain diff (on github.com, for instance). Please make sure that such reviewers can 
+understand the code completely and without excessive effort.<br/>
+<br/>
+Some valid use cases:
+```c++
+template <typename List>
+void doSomethingWithList(const List &list)
+{
+    foreach (const auto &item, list) {
+        // we don't know item type here so we use 'auto' keyword
+        // do something with item
+    }
+}
+
+for (auto it = container.begin(), end = container.end(); it != end; ++it) {
+    // we don't need to know the exact iterator type,
+    // because all iterators have the same interface
+}
+
+auto spinBox = static_cast<QSpinBox*>(sender());
+// we know the variable type based on the right-hand expression
+```
+
 * Space around operations eg `a = b + c` or `a=b+c`:
 
-Before and after the assignment there should be a space. One exception could be: for loops.
+Before and after the assignment and other binary (and ternary) operators there should be a space.<br/>
+There should not be a space between increment/decrement and its operand.<br/>
+Some valid use cases:
 ```c++
-for (int a=0; a<b; ++b) {
+a += 20;
+a = (b <= MAX_B ? b : MAX_B);
+++a;
+b--;
+
+for (int a = 0; a < b; ++b) {
+    // code
 }
 ```
 
@@ -173,5 +304,5 @@ for (int a=0; a<b; ++b) {
 
 * Method definitions aren't allowed in header files
 
-###8. Not covered above###
+###10. Not covered above###
 If something isn't covered above, just follow the same style the file you are editing has. If that particular detail isn't present in the file you are editing, then use whatever the rest of the project uses.
